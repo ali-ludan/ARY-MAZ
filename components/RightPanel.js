@@ -2,8 +2,9 @@
 import { formatAED, formatPct, formatDateLong } from '../lib/formatters';
 import { generatePaymentSchedule, generateMonthlyCashflow, generateAnnualOutflow, HANDOVER_DATE } from '../lib/calculations';
 import { exportSingleUnitCSV, exportBatchCSV, generateWhatsAppMessage } from '../lib/exportUtils';
+import AnalyticsPanel from './AnalyticsPanel';
 
-export default function RightPanel({ unit, params, batchUnits, onOfferLetter }) {
+export default function RightPanel({ unit, params, batchUnits, onOfferLetter, inventory }) {
   const { discount, dldPct, adminFee, downPct, preSplit, bookingDate, manualPrice } = params;
   const autoDisc = Math.max(0, Math.floor((downPct - 15) / 5) * 0.5);
   const totalDisc = discount + autoDisc;
@@ -65,6 +66,14 @@ export default function RightPanel({ unit, params, batchUnits, onOfferLetter }) 
 
   return (
     <div className="right-panel">
+      {/* Analytics & Insights Chart Panel */}
+      <AnalyticsPanel
+        unit={unit}
+        params={params}
+        batchUnits={batchUnits}
+        inventory={inventory}
+      />
+
       {/* Financial Snapshot */}
       <div className="card">
         <div className="card-header">Financial Snapshot</div>
@@ -209,7 +218,7 @@ export default function RightPanel({ unit, params, batchUnits, onOfferLetter }) 
       <div className="action-bar no-print">
         <button className="outline" onClick={handleWhatsApp}>📱 WhatsApp</button>
         <button className="outline" onClick={handleEmail}>✉ Email</button>
-        <button style={{background:'#1a2a3a',color:'white'}} onClick={onOfferLetter}>📄 Offer Letter</button>
+        <button style={{background:'var(--border)',color:'var(--text-primary)',border:'1px solid var(--accent)'}} onClick={onOfferLetter}>📄 Offer Letter</button>
         <button className="outline" onClick={handleExportCSV}>Export CSV</button>
         <button className="outline" onClick={()=>window.print()}>🖨 Print</button>
       </div>

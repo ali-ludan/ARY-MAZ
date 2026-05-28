@@ -94,7 +94,7 @@ export default function LeftPanel({ units, state, dispatch, tab }) {
 
           {/* Booking date */}
           <div className="filter-label" style={{marginTop:'0.7rem'}}>Booking Date</div>
-          <input className="text-input" type="date" value={bookingDate} onChange={e=>dispatch({type:'SET_BOOKING',value:e.target.value})}/>
+          <input suppressHydrationWarning className="text-input" type="date" value={bookingDate} onChange={e=>dispatch({type:'SET_BOOKING',value:e.target.value})}/>
 
           <div className="divider"/>
 

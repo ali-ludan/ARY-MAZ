@@ -102,7 +102,7 @@ export default function OfferModal({ open, onClose, units, params }) {
           </div>
           <div className="offer-modal-footer no-print">
             <button className="outline" onClick={onClose}>✕ Close</button>
-            <button style={{background:'#1a2a3a',color:'white'}} onClick={() => window.print()}>🖨 Print</button>
+            <button className="gold-btn" onClick={() => window.print()}>🖨 Print</button>
           </div>
         </div>
       </div>

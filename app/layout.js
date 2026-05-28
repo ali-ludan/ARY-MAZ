@@ -1,4 +1,6 @@
 import './globals.css';
+import { ThemeProvider } from '../context/ThemeContext';
+import ThemeSwitcher from '../components/ThemeSwitcher';
 
 export const metadata = {
   title: 'ARY & MAZ Developments — Smart Calculator',
@@ -8,7 +10,12 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body style={{ background: 'var(--bg)' }}>
+        <ThemeProvider>
+          <ThemeSwitcher />
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

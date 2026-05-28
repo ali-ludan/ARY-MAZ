@@ -83,11 +83,18 @@ export default function Page() {
       <div className="dashboard">
         {/* Header */}
         <div className="app-header">
-          <div>
-            <div className="app-title">ARY &amp; MAZ Developments</div>
-            <div className="app-subtitle">Smart Calculator Engine · Dubai, UAE</div>
+          <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
+            <div style={{width:4,height:32,borderRadius:4,background:'var(--accent)',flexShrink:0}}/>
+            <div>
+              <div className="app-title">ARY &amp; MAZ Developments</div>
+              <div className="app-subtitle">Smart Calculator Engine · Dubai, UAE</div>
+            </div>
           </div>
-          <button className="outline" onClick={()=>dispatch({type:'RESET'})} style={{fontSize:'0.7rem',padding:'0.35rem 0.9rem'}}>↺ Reset All</button>
+          <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
+            <span suppressHydrationWarning style={{fontSize:'0.65rem',color:'var(--accent)',fontWeight:500}}>{new Date().toLocaleDateString('en-AE',{day:'numeric',month:'short',year:'numeric'})}</span>
+            <span style={{fontSize:'0.6rem',background:'var(--accent)',color:'var(--stat-highlight)',padding:'0.2rem 0.7rem',borderRadius:'2rem',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase'}}>v2.0</span>
+            <button className="outline" onClick={()=>dispatch({type:'RESET'})} style={{fontSize:'0.7rem',padding:'0.35rem 0.9rem',marginRight:'2.5rem'}}>↺ Reset All</button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -96,6 +103,7 @@ export default function Page() {
             <button key={t} className={`tab-btn${tab===i?' active':''}`} onClick={()=>setTab(i)}>{t}</button>
           ))}
         </div>
+        <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',paddingTop:'1rem'}}>
 
         {/* Module 1 — Unit Price Breakdown */}
         {tab === 0 && (
@@ -106,6 +114,7 @@ export default function Page() {
               params={params}
               batchUnits={[]}
               onOfferLetter={()=>dispatch({type:'OPEN_OFFER'})}
+              inventory={inventory}
             />
           </div>
         )}
@@ -119,6 +128,7 @@ export default function Page() {
               params={params}
               batchUnits={state.batchUnits}
               onOfferLetter={()=>dispatch({type:'OPEN_OFFER'})}
+              inventory={inventory}
             />
           </div>
         )}
@@ -134,7 +144,8 @@ export default function Page() {
             <Module4 units={inventory}/>
           </div>
         )}
-      </div>
+        </div>{/* end inner flex wrapper */}
+      </div>{/* end dashboard */}
 
       {/* Offer Letter Modal */}
       <OfferModal
