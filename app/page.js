@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useReducer, useMemo } from 'react';
 import { parseInventoryCSV, filterUnits } from '../lib/inventory';
+import { calcAutoDiscount } from '../lib/calculations';
 import LeftPanel from '../components/LeftPanel';
 import RightPanel from '../components/RightPanel';
 import OfferModal from '../components/OfferModal';
@@ -9,12 +10,12 @@ import { Module3Inner } from '../components/Module3';
 
 const TABS = ['Unit Price','Batch Purchase','Discount Impact','Inventory Status'];
 
-const today = new Date().toISOString().slice(0,10);
-
+// Bug #2 fix: initState uses an empty string as bookingDate placeholder.
+// The actual today value is set client-side in useEffect to avoid SSR mismatch.
 const initState = {
   typeFilter:'ALL', statusFilter:'ALL', selIdx:0, manualPrice:0,
   discount:0, dldPct:4, adminFee:3000, downPct:15, preSplit:60,
-  bookingDate:today, batchUnits:[], offerOpen:false
+  bookingDate:'', batchUnits:[], offerOpen:false
 };
 
 function reducer(state, action) {
@@ -34,7 +35,7 @@ function reducer(state, action) {
     case 'CLEAR_BATCH': return {...state, batchUnits:[]};
     case 'OPEN_OFFER':  return {...state, offerOpen:true};
     case 'CLOSE_OFFER': return {...state, offerOpen:false};
-    case 'RESET':       return {...initState, bookingDate:today};
+    case 'RESET':       return {...initState, bookingDate: new Date().toISOString().slice(0,10)};
     default:            return state;
   }
 }
@@ -43,18 +44,48 @@ export default function Page() {
   const [tab, setTab] = useState(0);
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [state, dispatch] = useReducer(reducer, initState);
 
+  // Bug #2 fix: set bookingDate client-side only to avoid SSR/client date mismatch
   useEffect(() => {
-    fetch('/inventory.csv')
-      .then(r => r.text())
-      .then(csv => { setInventory(parseInventoryCSV(csv)); setLoading(false); })
-      .catch(() => setLoading(false));
+    if (!state.bookingDate) {
+      dispatch({ type: 'SET_BOOKING', value: new Date().toISOString().slice(0,10) });
+    }
   }, []);
 
-  const filteredUnits = useMemo(() => filterUnits(inventory, state.typeFilter, state.statusFilter), [inventory, state.typeFilter, state.statusFilter]);
+  // Bug #13 fix: check res.ok and surface a user-visible error on failure
+  useEffect(() => {
+    fetch('/inventory.csv')
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to load inventory: HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(csv => {
+        const parsed = parseInventoryCSV(csv);
+        if (parsed.length === 0) throw new Error('Inventory file loaded but contained no valid units.');
+        setInventory(parsed);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('[inventory fetch]', err.message);
+        setFetchError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
+  // Bug #3 fix: filteredUnits computed ONCE here; LeftPanel receives both raw + filtered.
+  // Raw units are needed for stats (totals), filtered units for the unit selector dropdown.
+  const filteredUnits = useMemo(
+    () => filterUnits(inventory, state.typeFilter, state.statusFilter),
+    [inventory, state.typeFilter, state.statusFilter]
+  );
 
   const unit = filteredUnits[state.selIdx] || filteredUnits[0] || null;
+
+  // Bug #17 fix: use the centralised calcAutoDiscount from lib/calculations instead of inlining
+  const autoDisc = calcAutoDiscount(state.downPct);
+  const totalDisc = state.discount + autoDisc;
 
   const params = {
     discount: state.discount, dldPct: state.dldPct, adminFee: state.adminFee,
@@ -62,10 +93,7 @@ export default function Page() {
     manualPrice: state.manualPrice
   };
 
-  const autoDisc = Math.max(0, Math.floor((state.downPct - 15) / 5) * 0.5);
-  const totalDisc = state.discount + autoDisc;
-
-  // Offer letter units: batch or single
+  // Bug #1 fix: pass totalDisc (manual + auto) as discountPct so offer letter shows correct discount
   const offerUnits = state.batchUnits.length > 0 ? state.batchUnits : (unit ? [unit] : []);
   const offerParams = { discountPct: totalDisc, dldPct: state.dldPct, adminFee: state.adminFee, downPct: state.downPct };
 
@@ -74,6 +102,16 @@ export default function Page() {
       <div className="loading-screen">
         <div className="loading-spinner"/>
         <div className="loading-text">Loading inventory data…</div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="loading-screen">
+        <div style={{fontSize:'2rem'}}>⚠️</div>
+        <div className="loading-text" style={{color:'var(--danger)',maxWidth:420,textAlign:'center'}}>{fetchError}</div>
+        <button className="outline" style={{marginTop:'1rem'}} onClick={() => window.location.reload()}>↺ Retry</button>
       </div>
     );
   }
@@ -108,7 +146,8 @@ export default function Page() {
         {/* Module 1 — Unit Price Breakdown */}
         {tab === 0 && (
           <div className="two-columns">
-            <LeftPanel units={filteredUnits} state={state} dispatch={dispatch} tab={0}/>
+            {/* Bug #3 fix: pass rawUnits (all inventory) for stats + filteredUnits for unit selector */}
+            <LeftPanel rawUnits={inventory} filteredUnits={filteredUnits} state={state} dispatch={dispatch} tab={0}/>
             <RightPanel
               unit={unit}
               params={params}
@@ -122,7 +161,7 @@ export default function Page() {
         {/* Module 2 — Batch Purchase */}
         {tab === 1 && (
           <div className="two-columns">
-            <LeftPanel units={filteredUnits} state={state} dispatch={dispatch} tab={1}/>
+            <LeftPanel rawUnits={inventory} filteredUnits={filteredUnits} state={state} dispatch={dispatch} tab={1}/>
             <RightPanel
               unit={unit}
               params={params}

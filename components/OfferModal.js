@@ -2,13 +2,39 @@
 import { useRef, useState, useEffect } from 'react';
 import { formatAED, formatPct, formatDateLong } from '../lib/formatters';
 
-let offerRefCounter = 1;
+// Bug #9 fix: persist offer ref counter in localStorage so it never resets on reload
+function getNextRefNumber() {
+  if (typeof window === 'undefined') return 1;
+  const key = 'ary_offer_ref_counter';
+  const current = parseInt(localStorage.getItem(key) ?? '0', 10);
+  const next = current + 1;
+  localStorage.setItem(key, String(next));
+  return next;
+}
 
 export default function OfferModal({ open, onClose, units, params }) {
   const [customerName, setCustomerName] = useState('');
+  const [refNum, setRefNum] = useState('');
   const overlayRef = useRef(null);
 
-  const refNum = `AM-${new Date().getFullYear()}-${String(offerRefCounter).padStart(3,'0')}`;
+  // Bug #11 fix: reset customer name every time the modal opens
+  useEffect(() => {
+    if (open) {
+      setCustomerName('');
+      // Generate a new ref number each time modal opens (persistent across sessions)
+      const n = getNextRefNumber();
+      setRefNum(`AM-${new Date().getFullYear()}-${String(n).padStart(3,'0')}`);
+    }
+  }, [open]);
+
+  // Bug #10 fix: close modal on Escape key
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
   const today = formatDateLong(new Date());
 
   if (!open || !units || units.length === 0) return null;
@@ -33,6 +59,11 @@ export default function OfferModal({ open, onClose, units, params }) {
   const totDown = rows.reduce((s,r) => s+r.down, 0);
   const totImm = rows.reduce((s,r) => s+r.imm, 0);
   const totOutflow = totNet + totDld + totAdmin;
+
+  // Bug #20 fix: guard window.print() access
+  const handlePrint = () => {
+    if (typeof window !== 'undefined') window.print();
+  };
 
   return (
     <div className="offer-overlay open" ref={overlayRef} onClick={e => { if(e.target===overlayRef.current) onClose(); }}>
@@ -102,7 +133,7 @@ export default function OfferModal({ open, onClose, units, params }) {
           </div>
           <div className="offer-modal-footer no-print">
             <button className="outline" onClick={onClose}>✕ Close</button>
-            <button className="gold-btn" onClick={() => window.print()}>🖨 Print</button>
+            <button className="gold-btn" onClick={handlePrint}>🖨 Print</button>
           </div>
         </div>
       </div>

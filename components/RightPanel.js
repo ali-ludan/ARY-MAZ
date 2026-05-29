@@ -1,18 +1,21 @@
 'use client';
+import { useMemo } from 'react';
 import { formatAED, formatPct, formatDateLong } from '../lib/formatters';
-import { generatePaymentSchedule, generateMonthlyCashflow, generateAnnualOutflow, HANDOVER_DATE } from '../lib/calculations';
+import { generatePaymentSchedule, generateMonthlyCashflow, generateAnnualOutflow, HANDOVER_DATE, calcAutoDiscount } from '../lib/calculations';
 import { exportSingleUnitCSV, exportBatchCSV, generateWhatsAppMessage } from '../lib/exportUtils';
 import AnalyticsPanel from './AnalyticsPanel';
 
 export default function RightPanel({ unit, params, batchUnits, onOfferLetter, inventory }) {
   const { discount, dldPct, adminFee, downPct, preSplit, bookingDate, manualPrice } = params;
-  const autoDisc = Math.max(0, Math.floor((downPct - 15) / 5) * 0.5);
+  // Bug #17 fix: use centralised calcAutoDiscount from lib
+  const autoDisc = calcAutoDiscount(downPct);
   const totalDisc = discount + autoDisc;
 
   // Determine active units for right panel
   const activeUnits = batchUnits.length > 0 ? batchUnits : (unit ? [unit] : []);
   const isBatch = batchUnits.length > 0;
 
+  // Bug #20 fix: guard window/document access — safe because this is 'use client' but defensive
   if (!unit && batchUnits.length === 0) {
     return <div className="right-panel"><div className="card"><div className="card-body" style={{color:'var(--text-muted)',textAlign:'center',padding:'3rem'}}>Select a unit to begin</div></div></div>;
   }
@@ -29,9 +32,14 @@ export default function RightPanel({ unit, params, batchUnits, onOfferLetter, in
   const totalArea = isBatch ? batchUnits.reduce((s,u)=>s+u.net_sqft,0) : (unit?.net_sqft || 1);
   const netPSF = totalArea > 0 ? netPrice / totalArea : 0;
 
-  const schedResult = generatePaymentSchedule({ netPrice, downPct, preSplitPct: preSplit, bookingDate, dldFee, adminFee: adminTotal });
-  const cashflow = generateMonthlyCashflow({ netPrice, downPct, preSplitPct: preSplit, bookingDate, dldFee, adminFee: adminTotal });
-  const annualRows = generateAnnualOutflow(cashflow, bookingDate);
+  // Bug #6 fix: memoize heavy calculations so they only rerun when their inputs change
+  const schedParams = useMemo(
+    () => ({ netPrice, downPct, preSplitPct: preSplit, bookingDate, dldFee, adminFee: adminTotal }),
+    [netPrice, downPct, preSplit, bookingDate, dldFee, adminTotal]
+  );
+  const schedResult = useMemo(() => generatePaymentSchedule(schedParams), [schedParams]);
+  const cashflow = useMemo(() => generateMonthlyCashflow(schedParams), [schedParams]);
+  const annualRows = useMemo(() => generateAnnualOutflow(cashflow, bookingDate), [cashflow, bookingDate]);
 
   const calcResults = { totalDiscountPct: totalDisc, discountAmount: discAmt, netPrice, netPSF, dldPct, dldFee, adminFee: adminTotal, downPct, downPayment: downAmt, immediateDue, totalOutflow, bookingDate, premiumPct: unit?.pre_launch_price>0?(((unit.selling_price-unit.pre_launch_price)/unit.pre_launch_price)*100).toFixed(1):0 };
 
@@ -53,7 +61,8 @@ export default function RightPanel({ unit, params, batchUnits, onOfferLetter, in
     const msg = isBatch
       ? `ARY & MAZ Developments — Batch (${batchUnits.length} units)\nTotal Net Price: AED ${formatAED(netPrice)}\nImmediate Due: AED ${formatAED(immediateDue)}\nTotal Outflow: AED ${formatAED(totalOutflow)}`
       : generateWhatsAppMessage(unit, calcResults);
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+    // Bug #20 fix: guard window access
+    if (typeof window !== 'undefined') window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const handleEmail = () => {
@@ -61,7 +70,8 @@ export default function RightPanel({ unit, params, batchUnits, onOfferLetter, in
     const body = isBatch
       ? `ARY & MAZ Developments — Batch (${batchUnits.length} units)\nTotal Net Price: AED ${formatAED(netPrice)}\nImmediate Due: AED ${formatAED(immediateDue)}\nTotal Outflow: AED ${formatAED(totalOutflow)}`
       : generateWhatsAppMessage(unit, calcResults);
-    window.location.href = `mailto:?subject=ARY %26 MAZ Developments — Unit Offer&body=${encodeURIComponent(body)}`;
+    // Bug #20 fix: guard window access
+    if (typeof window !== 'undefined') window.location.href = `mailto:?subject=ARY %26 MAZ Developments — Unit Offer&body=${encodeURIComponent(body)}`;
   };
 
   return (

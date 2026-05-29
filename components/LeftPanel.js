@@ -1,32 +1,28 @@
 'use client';
 import { formatAED, formatPct, formatDateLong, getStatusColor } from '../lib/formatters';
+import { calcAutoDiscount } from '../lib/calculations';
 
 const TYPES = ['ALL','STUDIO','1 BR','2 BR','3 BR DU PH'];
 const STATUSES = ['ALL','Available','Blocked','Hold','Booked','Sold'];
-const today = new Date().toISOString().slice(0,10);
 
-export default function LeftPanel({ units, state, dispatch, tab }) {
+// Bug #3 fix: rawUnits = full inventory for stats; filteredUnits = pre-filtered by page.js for dropdown
+export default function LeftPanel({ rawUnits, filteredUnits, state, dispatch, tab }) {
   const { typeFilter, statusFilter, selIdx, manualPrice, discount, dldPct, adminFee, downPct, preSplit, bookingDate, batchUnits } = state;
 
-  const filtered = units.filter(u => {
-    if (typeFilter !== 'ALL' && u.bedrooms !== typeFilter) return false;
-    if (statusFilter === 'ALL') return true;
-    if (statusFilter === 'Booked') return u.status === 'Booked - Pending Payment Confirmation';
-    return u.status === statusFilter;
-  });
-
-  const unit = filtered[selIdx] || filtered[0];
+  const unit = filteredUnits[selIdx] || filteredUnits[0];
   const selling = (manualPrice > 0 ? manualPrice : unit?.selling_price) || 0;
-  const autoDisc = Math.max(0, Math.floor((downPct - 15) / 5) * 0.5);
+  // Bug #17 fix: use centralised calcAutoDiscount from lib
+  const autoDisc = calcAutoDiscount(downPct);
   const totalDisc = discount + autoDisc;
 
+  // Stats use rawUnits so totals always reflect the full inventory
   const stats = {
-    total: units.length,
-    available: units.filter(u=>u.status==='Available').length,
-    blocked: units.filter(u=>u.status==='Blocked').length,
-    hold: units.filter(u=>u.status==='Hold').length,
-    booked: units.filter(u=>u.status==='Booked - Pending Payment Confirmation').length,
-    sold: units.filter(u=>u.status==='Sold').length,
+    total: rawUnits.length,
+    available: rawUnits.filter(u=>u.status==='Available').length,
+    blocked: rawUnits.filter(u=>u.status==='Blocked').length,
+    hold: rawUnits.filter(u=>u.status==='Hold').length,
+    booked: rawUnits.filter(u=>u.status==='Booked - Pending Payment Confirmation').length,
+    sold: rawUnits.filter(u=>u.status==='Sold').length,
   };
 
   const statusColor = unit ? getStatusColor(unit.status) : '#64748b';
@@ -65,7 +61,7 @@ export default function LeftPanel({ units, state, dispatch, tab }) {
           {/* Unit selector */}
           <div className="filter-label" style={{marginTop:'0.6rem'}}>Select Unit</div>
           <select className="unit-select" value={selIdx} onChange={e=>dispatch({type:'SET_SEL',value:+e.target.value})}>
-            {filtered.map((u,i)=>(
+            {filteredUnits.map((u,i)=>(
               <option key={u.unit_no} value={i}>{u.unit_no} — {u.bedrooms||'Shop'} — {u.status==='Booked - Pending Payment Confirmation'?'Booked':u.status}</option>
             ))}
           </select>

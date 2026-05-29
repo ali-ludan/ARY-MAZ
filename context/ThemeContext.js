@@ -8,29 +8,26 @@ const ThemeContext = createContext({
   setTheme: () => {},
 });
 
+// Maps theme object keys to CSS custom property names
+const CSS_VAR_MAP = {
+  bg: '--bg', cardBg: '--card-bg', cardInputBg: '--card-input-bg',
+  border: '--border', headerText: '--header-text', textPrimary: '--text-primary',
+  textMuted: '--text-muted', accent: '--accent', accentLight: '--accent-light',
+  accentText: '--accent-text', btnPrimary: '--btn-primary', btnPrimaryText: '--btn-primary-text',
+  btnOutlineBorder: '--btn-outline-border', sliderThumb: '--slider-thumb', danger: '--danger',
+  dangerLight: '--danger-light', tabActive: '--tab-active', tabActiveText: '--tab-active-text',
+  statHighlight: '--stat-highlight', statHighlightText: '--stat-highlight-text', divider: '--divider',
+};
+
 function applyTheme(t) {
   const r = document.documentElement;
-  r.style.setProperty('--bg', t.bg);
-  r.style.setProperty('--card-bg', t.cardBg);
-  r.style.setProperty('--card-input-bg', t.cardInputBg);
-  r.style.setProperty('--border', t.border);
-  r.style.setProperty('--header-text', t.headerText);
-  r.style.setProperty('--text-primary', t.textPrimary);
-  r.style.setProperty('--text-muted', t.textMuted);
-  r.style.setProperty('--accent', t.accent);
-  r.style.setProperty('--accent-light', t.accentLight);
-  r.style.setProperty('--accent-text', t.accentText);
-  r.style.setProperty('--btn-primary', t.btnPrimary);
-  r.style.setProperty('--btn-primary-text', t.btnPrimaryText);
-  r.style.setProperty('--btn-outline-border', t.btnOutlineBorder);
-  r.style.setProperty('--slider-thumb', t.sliderThumb);
-  r.style.setProperty('--danger', t.danger);
-  r.style.setProperty('--danger-light', t.dangerLight);
-  r.style.setProperty('--tab-active', t.tabActive);
-  r.style.setProperty('--tab-active-text', t.tabActiveText);
-  r.style.setProperty('--stat-highlight', t.statHighlight);
-  r.style.setProperty('--stat-highlight-text', t.statHighlightText);
-  r.style.setProperty('--divider', t.divider);
+  Object.entries(CSS_VAR_MAP).forEach(([key, cssVar]) => {
+    // Bug #15 fix: warn on missing values instead of silently setting 'undefined'
+    if (!t[key]) {
+      console.warn(`[ThemeContext] Theme is missing value for CSS var: ${cssVar} (key: ${key})`);
+    }
+    r.style.setProperty(cssVar, t[key] ?? '');
+  });
 }
 
 export function ThemeProvider({ children }) {
