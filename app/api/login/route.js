@@ -1,32 +1,47 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { createClient } from '../../../lib/supabase/server';
 
 export async function POST(request) {
   try {
     const { username, password } = await request.json();
 
-    let role = null;
-    if (username === 'admin' && password === 'admin@barari') {
-      role = 'admin';
-    } else if (username === 'agent' && password === 'agent@barari') {
-      role = 'user';
+    if (!username || !password) {
+      return NextResponse.json({ error: 'Email/Username and password are required' }, { status: 400 });
     }
 
-    if (!role) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-    }
+    // Auto-normalize username to email format if needed (e.g. admin -> admin@barari.com)
+    const email = username.includes('@') ? username : `${username}@barari.com`;
 
-    const cookieStore = await cookies();
-    cookieStore.set('barari_session', role, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24, // 1 day
-      path: '/'
+    const supabase = await createClient();
+    
+    // Sign in to Supabase Auth (stores session in cookies automatically via @supabase/ssr helper)
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
     });
 
-    return NextResponse.json({ success: true, role });
+    if (authError) {
+      return NextResponse.json({ error: authError.message }, { status: 401 });
+    }
+
+    const user = authData.user;
+
+    // Fetch user role from profiles table
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('[profiles fetch error]', profileError);
+      // Fallback default role
+      return NextResponse.json({ success: true, role: 'user' });
+    }
+
+    return NextResponse.json({ success: true, role: profile.role });
   } catch (error) {
+    console.error('[API Login]', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

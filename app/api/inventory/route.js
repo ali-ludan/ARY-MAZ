@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { createClient } from '../../../lib/supabase/server';
 
 function parseCSVRow(line) {
   const result = [];
@@ -27,14 +26,23 @@ function serializeCSVRow(cols) {
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const session = cookieStore.get('barari_session');
+    const supabase = await createClient();
     
-    if (!session || !session.value) {
+    // Authenticate user via Supabase session cookie
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
       return new Response('Unauthorized', { status: 401 });
     }
 
-    const role = session.value;
+    // Retrieve user role from profiles
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    const role = profile?.role || 'user';
     const csvPath = path.join(process.cwd(), 'data', 'inventory.csv');
     
     if (!fs.existsSync(csvPath)) {
